@@ -262,7 +262,7 @@ class Conv2dCSQ(_Conv2dQ):
             self.step_size_a.data.copy_(2 * x.abs().mean() / math.sqrt(2 ** self.nbits - 1))
             #self.u.data.fill_(self.weight.std()*3.0)
             #self.l.data.fill_(-self.weight.std()*3.0)
-            self.z.data.copy(self.weight.mean())
+            self.z.data.copy_(self.weight.mean())
             self.init_state.fill_(1)
 
         #print(self.nbits)
