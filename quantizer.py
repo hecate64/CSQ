@@ -72,8 +72,8 @@ def quantizeCSQ_affine(v, s, z, p):
     z = grad_scale(z, gradScaleFactor)
     vbar = ((round_pass(((v/s+z)-0.5)))+0.5).clamp(Qn, Qp)-z
     vhat = vbar * s
-    print(z)
-    print(vbar)
+    #print(z)
+    #print(vbar)
     #print(torch.histc(vbar))
 
 
