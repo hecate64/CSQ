@@ -1,17 +1,18 @@
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
-
+from torch.nn.parameter import Parameter
 import math
 #import matplotlib.pyplot as plt
 import numpy as np
 #from matplotlib.ticker import PercentFormatter
 
-
+'''
 out = []
 out = torch.zeros(4).cuda()
 out = 0
 total = 0
+'''
 def grad_scale(x, scale):
     yOut = x
     yGrad = x*scale
@@ -58,6 +59,25 @@ def quantizeCSQ(v, s, p, isActivation=False):
 
 
         return vhat
+def quantizeCSQ_affine(v, s, z, p):
+    #global out
+    # is wei
+    # ght
+    Qn = -2**(p-1) + 0.5
+    Qp = 2**(p-1) - 0.5
+    gradScaleFactor = 1.0 / math.sqrt(v.numel() * (2**p))
+    #print('sym-W')
+    #quantize
+    s = grad_scale(s, gradScaleFactor)
+    z = grad_scale(z, gradScaleFactor)
+    vbar = ((round_pass(((v/s+z)-0.5)))+0.5).clamp(Qn, Qp)-z
+    vhat = vbar * s
+    print(z)
+    print(vbar)
+    #print(torch.histc(vbar))
+
+
+    return vhat
 def quantizeCSQ_EWGS(v, u, l, s, p, isActivation=False):
     if isActivation:
         Qn = 0
@@ -169,7 +189,7 @@ class _Conv2dQ(nn.Conv2d):
         self.step_size_w = Parameter(torch.Tensor(1))
         #self.step_size_w = Parameter(torch.Tensor(out_channels))
         self.step_size_a = Parameter(torch.Tensor(1))
-
+        self.z =  Parameter(torch.Tensor(1))
 
         #buffer is not updated for optim.step
         self.register_buffer('init_state', torch.zeros(1))
@@ -240,19 +260,20 @@ class Conv2dCSQ(_Conv2dQ):
         if self.init_state == 0:
             self.step_size_w.data.copy_(2 * self.weight.abs().mean() / math.sqrt(2 ** (self.nbits - 1) - 1))
             self.step_size_a.data.copy_(2 * x.abs().mean() / math.sqrt(2 ** self.nbits - 1))
-            self.u.data.fill_(self.weight.std()*3.0)
-            self.l.data.fill_(-self.weight.std()*3.0)
+            #self.u.data.fill_(self.weight.std()*3.0)
+            #self.l.data.fill_(-self.weight.std()*3.0)
+            self.z.data.copy(self.weight.mean())
             self.init_state.fill_(1)
 
         #print(self.nbits)
-        global out
+        #global out
         x_q = quantizeCSQ(x, self.step_size_a, self.nbits, isActivation=True)
 
         #out = out + torch.histc(x_q,bins=4)
         #print(out*100/out.sum())
         #print(x_q/self.step_size_a)
-
-        w_q = quantizeCSQ_EWGS(self.weight, self.u, self.l, self.step_size_w, self.nbits)
+        w_q = quantizeCSQ_affine(self.weight, self.step_size_w, self.z, self.nbits)
+        #w_q = quantizeCSQ_EWGS(self.weight, self.u, self.l, self.step_size_w, self.nbits)
         #out = out + torch.histc(w_q,bins=4)
         #print(out*100/out.sum())
         #print(w_q / self.step_size_w)
